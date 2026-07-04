@@ -7,3 +7,363 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0,
                                  maximum-scale=1.0, user-scalable=no">
   <title>Pulse Arena — Free Wave Survival Arena Shooter</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #1a1a1a;
+      font-family: Arial, sans-serif;
+    }
+    
+    #gameContainer {
+      width: 90vw;
+      height: 90vh;
+      max-width: 1200px;
+      max-height: 800px;
+      border: 2px solid #00ff00;
+      box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+    }
+    
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background-color: #000;
+    }
+    
+    .info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: #00ff00;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+      z-index: 10;
+    }
+    
+    .score {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      color: #00ff00;
+      font-size: 16px;
+      font-weight: bold;
+      font-family: 'Courier New', monospace;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+    <div class="info">
+      <p>Pulse Arena - Wave Survival Shooter</p>
+      <p>Use Arrow Keys or WASD to move</p>
+      <p>Space or Click to shoot</p>
+    </div>
+    <div class="score">
+      <p>Score: <span id="score">0</span></p>
+      <p>Wave: <span id="wave">1</span></p>
+      <p>Health: <span id="health">100</span></p>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas size
+    function resizeCanvas() {
+      const container = document.getElementById('gameContainer');
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    
+    // Game variables
+    let player = {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      width: 20,
+      height: 20,
+      speed: 5,
+      health: 100,
+      maxHealth: 100,
+      angle: 0
+    };
+    
+    let bullets = [];
+    let enemies = [];
+    let particles = [];
+    let score = 0;
+    let wave = 1;
+    let enemiesDefeated = 0;
+    let gameRunning = true;
+    
+    let keys = {};
+    
+    // Event listeners
+    document.addEventListener('keydown', (e) => {
+      keys[e.key.toLowerCase()] = true;
+      if (e.key === ' ') {
+        e.preventDefault();
+        shoot();
+      }
+    });
+    
+    document.addEventListener('keyup', (e) => {
+      keys[e.key.toLowerCase()] = false;
+    });
+    
+    canvas.addEventListener('click', shoot);
+    
+    document.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      player.angle = Math.atan2(mouseY - player.y, mouseX - player.x);
+    });
+    
+    function shoot() {
+      if (!gameRunning) return;
+      bullets.push({
+        x: player.x,
+        y: player.y,
+        vx: Math.cos(player.angle) * 7,
+        vy: Math.sin(player.angle) * 7,
+        radius: 5,
+        life: 60
+      });
+    }
+    
+    function spawnEnemy() {
+      const side = Math.random();
+      let x, y;
+      
+      if (side < 0.25) {
+        x = Math.random() * canvas.width;
+        y = -30;
+      } else if (side < 0.5) {
+        x = Math.random() * canvas.width;
+        y = canvas.height + 30;
+      } else if (side < 0.75) {
+        x = -30;
+        y = Math.random() * canvas.height;
+      } else {
+        x = canvas.width + 30;
+        y = Math.random() * canvas.height;
+      }
+      
+      enemies.push({
+        x: x,
+        y: y,
+        width: 15,
+        height: 15,
+        speed: 2 + wave * 0.5,
+        health: 1 + Math.floor(wave / 3),
+        maxHealth: 1 + Math.floor(wave / 3)
+      });
+    }
+    
+    function updateGame() {
+      // Update player position
+      if (keys['arrowup'] || keys['w']) player.y -= player.speed;
+      if (keys['arrowdown'] || keys['s']) player.y += player.speed;
+      if (keys['arrowleft'] || keys['a']) player.x -= player.speed;
+      if (keys['arrowright'] || keys['d']) player.x += player.speed;
+      
+      // Boundary check
+      player.x = Math.max(player.width / 2, Math.min(canvas.width - player.width / 2, player.x));
+      player.y = Math.max(player.height / 2, Math.min(canvas.height - player.height / 2, player.y));
+      
+      // Update bullets
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        bullets[i].x += bullets[i].vx;
+        bullets[i].y += bullets[i].vy;
+        bullets[i].life--;
+        
+        if (bullets[i].life <= 0 || bullets[i].x < 0 || bullets[i].x > canvas.width ||
+            bullets[i].y < 0 || bullets[i].y > canvas.height) {
+          bullets.splice(i, 1);
+        }
+      }
+      
+      // Update enemies
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        const dx = player.x - enemies[i].x;
+        const dy = player.y - enemies[i].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        enemies[i].x += (dx / dist) * enemies[i].speed;
+        enemies[i].y += (dy / dist) * enemies[i].speed;
+        
+        // Check collision with player
+        if (dist < player.width / 2 + enemies[i].width / 2) {
+          player.health -= 5;
+          enemies.splice(i, 1);
+          if (player.health <= 0) gameRunning = false;
+          continue;
+        }
+        
+        // Check collision with bullets
+        for (let j = bullets.length - 1; j >= 0; j--) {
+          const bdx = enemies[i].x - bullets[j].x;
+          const bdy = enemies[i].y - bullets[j].y;
+          const bdist = Math.sqrt(bdx * bdx + bdy * bdy);
+          
+          if (bdist < enemies[i].width / 2 + bullets[j].radius) {
+            enemies[i].health--;
+            bullets.splice(j, 1);
+            
+            if (enemies[i].health <= 0) {
+              score += 10 * wave;
+              enemiesDefeated++;
+              
+              // Particle effect
+              for (let k = 0; k < 5; k++) {
+                particles.push({
+                  x: enemies[i].x,
+                  y: enemies[i].y,
+                  vx: (Math.random() - 0.5) * 4,
+                  vy: (Math.random() - 0.5) * 4,
+                  life: 30
+                });
+              }
+              
+              enemies.splice(i, 1);
+              break;
+            }
+          }
+        }
+      }
+      
+      // Update particles
+      for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].x += particles[i].vx;
+        particles[i].y += particles[i].vy;
+        particles[i].life--;
+        
+        if (particles[i].life <= 0) {
+          particles.splice(i, 1);
+        }
+      }
+      
+      // Spawn enemies
+      if (enemies.length < 5 + wave * 2) {
+        if (Math.random() < 0.02 + wave * 0.01) {
+          spawnEnemy();
+        }
+      }
+      
+      // Check wave progression
+      if (enemiesDefeated >= 10 * wave) {
+        wave++;
+        enemiesDefeated = 0;
+      }
+      
+      // Update UI
+      document.getElementById('score').textContent = score;
+      document.getElementById('wave').textContent = wave;
+      document.getElementById('health').textContent = Math.max(0, Math.floor(player.health));
+    }
+    
+    function drawGame() {
+      // Clear canvas
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw grid
+      ctx.strokeStyle = 'rgba(0, 255, 0, 0.05)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < canvas.width; i += 50) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, canvas.height);
+        ctx.stroke();
+      }
+      for (let i = 0; i < canvas.height; i += 50) {
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(canvas.width, i);
+        ctx.stroke();
+      }
+      
+      // Draw player
+      ctx.save();
+      ctx.translate(player.x, player.y);
+      ctx.rotate(player.angle);
+      ctx.fillStyle = '#00ff00';
+      ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height);
+      ctx.fillStyle = '#00ff00';
+      ctx.fillRect(player.width / 2, -3, 10, 6);
+      ctx.restore();
+      
+      // Draw health bar
+      const healthBarWidth = 30;
+      const healthPercent = player.health / player.maxHealth;
+      ctx.fillStyle = '#ff0000';
+      ctx.fillRect(player.x - healthBarWidth / 2, player.y - player.height / 2 - 10, healthBarWidth, 4);
+      ctx.fillStyle = '#00ff00';
+      ctx.fillRect(player.x - healthBarWidth / 2, player.y - player.height / 2 - 10, healthBarWidth * healthPercent, 4);
+      
+      // Draw bullets
+      ctx.fillStyle = '#ffff00';
+      for (let bullet of bullets) {
+        ctx.beginPath();
+        ctx.arc(bullet.x, bullet.y, bullet.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      // Draw enemies
+      for (let enemy of enemies) {
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(enemy.x - enemy.width / 2, enemy.y - enemy.height / 2, enemy.width, enemy.height);
+        
+        // Enemy health bar
+        const ehealthBarWidth = 20;
+        const ehealthPercent = enemy.health / enemy.maxHealth;
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(enemy.x - ehealthBarWidth / 2, enemy.y - enemy.height / 2 - 8, ehealthBarWidth, 3);
+        ctx.fillStyle = '#00ff00';
+        ctx.fillRect(enemy.x - ehealthBarWidth / 2, enemy.y - enemy.height / 2 - 8, ehealthBarWidth * ehealthPercent, 3);
+      }
+      
+      // Draw particles
+      for (let particle of particles) {
+        ctx.fillStyle = `rgba(255, 255, 0, ${particle.life / 30})`;
+        ctx.fillRect(particle.x - 2, particle.y - 2, 4, 4);
+      }
+      
+      // Draw game over
+      if (!gameRunning) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ff0000';
+        ctx.font = 'bold 40px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
+        ctx.fillStyle = '#00ff00';
+        ctx.font = '20px Arial';
+        ctx.fillText(`Final Score: ${score}`, canvas.width / 2, canvas.height / 2 + 20);
+        ctx.fillText(`Wave: ${wave}`, canvas.width / 2, canvas.height / 2 + 50);
+      }
+    }
+    
+    function gameLoop() {
+      if (gameRunning) {
+        updateGame();
+      }
+      drawGame();
+      requestAnimationFrame(gameLoop);
+    }
+    
+    // Start game
+    gameLoop();
+  </script>
+</body>
+</html>
