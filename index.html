@@ -517,7 +517,7 @@
       
       for (let i = 0; i < bulletsPerShot; i++) {
         const angle = gameState.player.angle + (Math.random() - 0.5) * weapon.spread;
-        const speed = gameState.weaponStats[gameState.currentWeapon].baseSpeed;
+        const speed = weapon.baseSpeed;
         
         gameState.bullets.push({
           x: gameState.player.x,
